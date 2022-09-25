@@ -1,0 +1,279 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from HOSVD import hosvd,readCST4
+from matplotlib.colors import LogNorm
+from basis import Legendre
+
+
+
+def import_check_cell(filename):
+    input_matrix=np.genfromtxt(filename, skip_header=2, dtype='float32')
+    e_map_flat=input_matrix[:,3]
+    e_map=np.reshape(e_map_flat,(201,81,81))
+    print('load from file: ',filename)
+    return e_map
+
+def CST_to_py():
+    '''
+    import all cell field and stack to 6D tensor
+    :return:
+    '''
+    maps6=[]
+    for nm in range(6):
+        maps5=[]
+        for nl in range(6):
+            maps4=[]
+            for nr in range(6):
+                maps4.append(readCST4("D:/RFQ_cell_maps/cell_"+str(nm)+"_"+str(nl)+"_" +str(nr) +".txt"))
+            maps4=np.asarray(maps4)
+            maps5.append(maps4)
+        maps5=np.asarray(maps5)
+        maps6.append(maps5)
+    maps6=np.array(maps6)
+    print('tensor loaded:',np.shape(maps6))
+    np.save("cells",maps6)
+
+Load=True
+if Load==False:
+
+    maps=np.load('cells.npy')
+    # plt.imshow(maps[2,3,4,100,:,:])
+    # plt.colorbar()
+    # plt.show()
+    cmaps=hosvd(maps)
+    cmaps.save(path='./saved_HOSVD/')
+
+else:
+    cmaps=hosvd(load_from='./saved_HOSVD/')
+
+# nn=0
+# for i in cmaps.s:
+#     plt.plot(i, label=str(nn))
+#     nn+=1
+# plt.legend()
+# plt.show()
+def u_hat(xx,n_term):
+    # evaluate shiftted Legend's at locations xx
+    pv = []
+
+    def p0(x):
+        return np.ones_like(x)
+
+    def p1(x):
+        return 2 * x - 1
+
+    def p2(x):
+        return 6 * x ** 2 - 6 * x + 1
+
+    def p3(x):
+        return 20 * x ** 3 - 30 * x ** 2 + 12 * x - 1
+
+    def p4(x):
+        return 70 * x ** 4 - 140 * x ** 3 + 90 * x ** 2 - 20 * x + 1
+
+    pv.append(p0(xx))
+    pv.append(p1(xx))
+    pv.append(p2(xx))
+    pv.append(p3(xx))
+    pv.append(p4(xx))
+
+    pv = np.array(pv)
+
+    if np.size(np.shape(pv)) == 1:
+        pv = np.expand_dims(pv, axis=1)
+    return pv[0:n_term, :]
+def comp_para_expo():   # Fig.4
+    '''
+    compare field from simulation and field from multivariate fitting.
+    Produces Fig. 4
+    :return:
+    '''
+    new_v=[]
+
+    new_v.append(0.5)
+    new_v.append(0.5)
+    new_v.append(0.6)
+    new_v.append([])
+    new_v.append(np.linspace(0,2,81))
+    new_v.append(np.linspace(0,2,81))
+    cmaps.trim(new_shape=np.array([2,2,2,3,3,3]))
+    cmaps.save(path="./saved_HOSVD/")
+    cmaps.resample(new_v)
+    rcmaps=cmaps.recover()
+
+
+    reference_map=import_check_cell('./saved_HOSVD/cell_check.txt')
+    '''
+    m=2.0 of 1.5~2.5
+    r=1.1 of 0.6~1.6
+    l=14 of 5~20
+    '''
+
+    fig1, (ax1, ax2) = plt.subplots(1,2,figsize=(8.5,3))
+    sc=ax1.imshow(reference_map[80,:,:],vmax=1,vmin=-1,cmap='RdBu',origin='lower')
+    fig1.colorbar(sc,ax=ax1)
+    sc2=ax2.imshow(abs(-reference_map[80,:,:]+rcmaps[0,0,0,80,:,:]),origin='lower',norm=LogNorm(vmin=0.01, vmax=0.1))
+    cbar=fig1.colorbar(sc2,ax=ax2,extend='max')
+    cbar.set_ticks([0.01, 0.03, 0.05, 0.1])
+    cbar.set_ticklabels(['<1%', '3%', '5%', '>10%'])
+    ax1.set_xlabel('x step')
+    ax1.set_ylabel('y step')
+    ax1.set_title('$V_s$')
+    ax2.set_xlabel('x step')
+    ax2.set_ylabel('y step')
+    ax2.set_title('$(V_s-V_e)$')
+    fig1.savefig('./figs/map_error.pdf',bbox_inches='tight')
+
+    fig2,(ax3,ax4,ax5)=plt.subplots(3,1,sharex=True)
+
+    ax3.plot(reference_map[:,0,70])
+    ax3.plot(rcmaps[0,0,0,:,0,70])
+    ax3.text(0,-1.5,'at x=1.75,y=0')
+    ax3.legend(('simulation','extrapolation'),loc='upper right')
+    ax3.set_ylabel('potential')
+    ax3.sharey=ax5
+
+
+    ax4.plot(reference_map[:,60,0])
+    ax4.plot(rcmaps[0,0,0,:,60,0])
+    ax4.text(0,0.5,('at x=0,y=1.75'))
+    ax4.set_ylabel('potential')
+
+
+
+    ax5.plot(rcmaps[0,0,0,:,30,35])
+    ax5.plot(reference_map[:,30,35])
+    ax5.text(0,-0.3,'at x=0.82,y=0.75')
+    ax5.set_xlabel('z step')
+    ax5.set_ylabel('potential')
+    fig2.savefig('./figs/line_error.pdf',bbox_inches='tight')
+    plt.show()
+#comp_para_expo()
+def show_v():
+    '''
+    show few high-value singular vectors
+    '''
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+    # make a little extra space between the subplots
+    fig.subplots_adjust(hspace=0.5)
+    ax1.set_title('$U^{(5)}$ or $U^{(6)}$')
+    ax1.plot(cmaps.v[5][0],label=str(cmaps.s[5][0]))
+    ax1.plot(cmaps.v[5][1],label=str(cmaps.s[5][1]))
+    ax1.plot(cmaps.v[5][2],label=str(cmaps.s[5][2]))
+    #ax1.legend(loc='upper left')
+
+    ax2.set_title('$U^{(4)}$')
+    ax2.plot(cmaps.v[3][0],label=str(cmaps.s[3][0]))
+    ax2.plot(cmaps.v[3][1],label=str(cmaps.s[3][1]))
+    ax2.plot(cmaps.v[3][2],label=str(cmaps.s[3][2]))
+    #ax2.legend(loc='upper left')
+
+    ax3.set_title('$U^{(1)}$ and $U^{(2)}$ and $U^{(3)}$')
+    ax3.plot(cmaps.v[0][0],marker='.')
+    ax3.plot(cmaps.v[0][1],marker='.')
+    ax3.plot(cmaps.v[1][0],marker='.')
+    ax3.plot(cmaps.v[1][1],marker='.')
+    ax3.plot(cmaps.v[2][0],marker='.')
+    ax3.plot(cmaps.v[2][1],marker='.')
+    plt.show()
+#show_v()
+def base_fitting_show(which_mode):
+    '''
+    This function produces Fig. 6
+    check the fitted coefficents
+    z need 4 order Legendre
+    x,y need 2, 3 order legendre
+    a,b l is much less.
+    N which order
+    :return:
+    '''
+    fig, ax = plt.subplots(figsize=(6, 3))
+    coes=np.load('.\saved_HOSVD\coeff.npy',allow_pickle=True)
+    for i in coes:
+        print(i)
+    func=cmaps.v[which_mode][:3,:]
+    nx=np.size(func[0,:])
+    base=Legendre(4,nx)
+    coe=coes[3]
+    for i in range (3):
+        ax.plot((coe@base)[i],label='$K^{(4)}_{'+str(i+1)+'}P^{(4)}$')
+        ax.plot(func[i],ls=':',label='$u^{(4)}_{'+str(i+1)+'}$')
+    ax.set_xlabel('z step')
+    ax.set_xlim(0,270)
+    ax.text(100,-0.09,'s='+"{0:.0f}".format(cmaps.s[3][0]))
+    ax.text(170,0.075,'s='+"{0:.0f}".format(cmaps.s[3][1]))
+    ax.text(50,0.075,'s='+"{0:.3f}".format(cmaps.s[3][2]))
+
+    ax.legend()
+    print(coe)
+    f=open('transfomation.txt','w')
+    for i in range(np.shape(coe)[0]):
+        for j in range(np.shape(coe)[1]):
+            f.write("{0:.2E}".format(coe[i,j]))
+            if j<np.shape(coe)[1]-1:
+                f.write(' &')
+        f.write(r'\\'+'\n')
+    f.close()
+    fig.savefig('./figs/fitting.pdf', bbox_inches='tight')
+    plt.show()
+#base_fitting_show(3)
+def Le_fitting(n_terms=(3,4,3,4,4,4)):
+    '''
+    find coefficents for the fitting, with least square method
+    and save as .npy file
+    :param n_terms:
+    :return:
+    '''
+    coefs=[]
+    cmaps.trim(new_shape=(2,2,2,3,3,3))
+    n_terms=np.array(n_terms)
+    for v_n_mode in cmaps.v:
+        nx=np.shape(v_n_mode)[1]
+        P=Legendre(n_terms[v_n_mode],nx)
+        coe=v_n_mode @ P.T @ np.linalg.inv(P@P.T)
+        coefs.append(coe)
+    np.save('.\saved_HOSVD\coeff.npy',coefs)
+
+#Le_fitting()
+def map_fitted(para):
+    '''
+    map the fitting function to mesh grid for further use, e.g. compare with
+    :param para:
+    :return:
+    '''
+    coes = np.load('.\saved_HOSVD\coeff.npy', allow_pickle=True)
+    cmaps.trim((2,2,2,3,3,3))
+    for i in range(6):
+        print(i,np.shape(coes[i]),np.shape(coes[i]))
+        cmaps.v[i]=coes[i]@u_hat(para[i],n_term=np.shape(coes[i])[1])
+    return np.squeeze(cmaps.recover())
+
+def map_fitted_evaluate():
+    paras=[]
+    paras.append(0.5)
+    paras.append(0.5)
+    paras.append(0.6)
+    paras.append(np.linspace(0,1,201))
+    paras.append(np.linspace(0,2,81))
+    paras.append(np.linspace(0,2,81))
+    print(np.shape(map_fitted(paras)))
+
+def V_trim_demo():
+    ax = plt.figure().add_subplot(projection='3d')
+    x = np.linspace(1,6,6)
+    y = np.ones_like(x)
+    print(cmaps.v[1])
+    for vv in cmaps.v[1]:
+        ax.plot(x, y, vv,ls=':',marker='o')
+        y=y+1
+    ax.set_ylim(0,6)
+    ax.set_xlim(1,6.2)
+    ax.set_zlim(-1.5,1.5)
+    ax.set_xlabel('l-step')
+    ax.set_ylabel('n')
+    ax.set_title("all 6 singular vectors of $U^{(2)}$")
+    ax.view_init(elev=20., azim=-60)
+
+    plt.show()
+
+V_trim_demo()
