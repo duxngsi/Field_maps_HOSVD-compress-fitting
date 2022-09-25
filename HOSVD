@@ -1,0 +1,147 @@
+import numpy as np
+from scipy.interpolate import interp1d
+
+
+class hosvd:
+
+    def __init__(self,data=0,load_from=''):
+        # Initialize with original data, or a tensor processed previously.
+        if load_from=='':
+            self.shape=np.shape(data)
+            self.order=np.size(self.shape)
+            self.v=list(np.ones(self.order,dtype=False))    #singular vectors
+            # v[n]=False means n-mode vectors are not decomposed, otherwise v[n] store n-mode singular vectors
+            self.s=list(np.ones(self.order))    # singular values
+            self.CoreT=data        #core tensor
+            self.all_svd()
+        else:
+            self.load(load_from)        #A, v, s,CoreT is filled
+            self.shape=np.shape(self.CoreT)
+            self.order=np.size(self.shape)
+            print( 'data and its svd is loaded from:'+load_from+'saved_HOSVD')
+    def __n_mode_svd(self, which_mode):
+        # svd on the n-mode vectors,get n-mode singular vectors, then project all n-mode vectors on them.
+        # First calculate the covariance matrix and then svd, the results are approximate, and the efficiency is greatly improved
+        switch_index = np.arange(0, self.order, step=1, dtype='int32')
+        temp = switch_index[which_mode]
+        switch_index[which_mode] = switch_index[-1]
+        switch_index[-1] = temp
+        # =========加工得到用于交换维度的数列
+        A = np.transpose(self.CoreT, switch_index)
+        most_inner_index = np.size(self.shape) - 1
+        AT = np.swapaxes(A, most_inner_index, most_inner_index - 1)
+        cmats = np.matmul(AT, A)
+        bb = np.arange(most_inner_index - 1)
+        bb = tuple(bb)
+        cmat = np.average(cmats, axis=bb)
+        u, s, v = np.linalg.svd(cmat)
+        self.v[which_mode] = v
+        self.s[which_mode] = s
+        print('The order '+str(which_mode)+' svd complete')
+        print(np.shape(v))
+        print(np.shape(A))
+        A = np.tensordot(A, v.T, axes=1)
+        self.CoreT = np.transpose(A, switch_index)
+
+
+    def __n_mode_recover(self,A, which_mode):
+
+        if self.v[which_mode] != False:
+            switch_index = np.arange(0, self.order, 1, dtype='int32') # (0,1,3,2,4) meaning 3rd and 4th dimension is swaped.
+            temp = switch_index[which_mode]
+            switch_index[which_mode]=switch_index[-1]
+            switch_index[-1]=temp
+            result=np.transpose(A,switch_index)
+            # print(np.shape(result))
+            # print(np.shape(self.v[which_order]))
+
+            result=np.tensordot(result,self.v[which_mode],axes=1)
+            return np.transpose(result,switch_index)
+        else:
+
+            print(str(which_mode)+"is not under decomposed form")
+            return A
+
+
+    def recover(self):
+        A=np.copy(self.CoreT)
+        for i in range(self.order):
+            A=self.__n_mode_recover(A,i)
+        return A
+
+
+
+    def all_svd(self):
+        for i in range(self.order):
+            self.__n_mode_svd(i)  # fill v and s, and CoreT is altered
+
+        print('HOSVD complete!')
+
+    def all_recover(self):
+        for i in range(self.order):
+            self.CoreT=np.tensordot(self.CoreT,self.v[i],axes=[0,0])
+
+
+
+    def trim(self,new_shape):
+        # trim basis and CoreT according to new_shape
+        for which_order in range(self.order):
+            perm = np.arange(0, self.order, 1, dtype='int32')
+            temp = perm[which_order]
+            perm[which_order] = perm[0]
+            perm[0] = temp
+            temp_T = np.transpose(self.CoreT, perm)
+            temp_T=temp_T[0:new_shape[which_order]]
+            self.CoreT=np.transpose(temp_T,perm)
+
+            self.v[which_order]=self.v[which_order][0:new_shape[which_order],:]
+            print(np.shape(self.v[which_order]), 'is trimed to:',new_shape[which_order])
+        self.shape=new_shape
+
+    def save(self,path):
+        np.save(path+'CoreT', self.CoreT)
+        np.save(path+'v', self.v)
+        np.save(path+'s', self.s)
+
+    def load(self,path):
+        self.CoreT=np.load(path+'CoreT.npy',allow_pickle=True)
+        self.v=np.load(path+'v.npy',allow_pickle=True)
+        self.s=np.load(path+'s.npy',allow_pickle=True)
+
+    def resample(self,new_v):
+        '''
+
+        :param new_v: list with(order) elements, N_th element is resampled basis of N_th order
+        :return:
+        '''
+        for i in range(self.order):
+            if np.size(new_v[i]) != 0:
+                f=interp1d(np.linspace(0,1,np.shape(self.v[i])[1]), self.v[i], kind='quadratic', fill_value='extrapolate',axis=1)
+                self.v[i]=f(new_v[i])
+                if np.size(new_v[i])==1:
+                    self.v[i] = np.expand_dims(self.v[i], axis=1)
+
+
+def readCST(filename,shape):
+    '''
+    read and process 3D E field maps(3 components) of single cell exported by CST
+    obtain a 4D tensor
+    '''
+
+    input_matrix=np.genfromtxt(filename, skip_header=2, dtype='float32')
+    e_map_flat=input_matrix[:,(3,5,7)]  # extract Ex, Ey, Ez
+    e_map=np.reshape(e_map_flat,shape)# In txt file, x node vary first, then y,then z. Tensor shape: （nz,ny,nx,3)
+    e_map=-e_map    # some times all fields are negative
+    print('load ',filename)
+    return e_map
+
+def readCST4(filename):
+    '''
+    read and process 3D potential maps of single cell exported by CST
+    obtain a 3D tensor
+    '''
+    input_matrix=np.genfromtxt(filename, skip_header=2, dtype='float32')
+    e_map_flat=input_matrix[:,3]
+    e_map=np.reshape(e_map_flat,(201,41,41))
+    print('load ',filename)
+    return e_map
