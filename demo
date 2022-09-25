@@ -4,6 +4,10 @@ from HOSVD import hosvd,readCST4
 from matplotlib.colors import LogNorm
 from basis import Legendre
 
+'''
+All required files are shared with google driver:
+https://drive.google.com/drive/folders/1cYFu_IA5WmKiDpTkB89WaOOAJSO79YnZ?usp=sharing
+'''
 
 
 def import_check_cell(filename):
@@ -25,6 +29,8 @@ def CST_to_py():
             maps4=[]
             for nr in range(6):
                 maps4.append(readCST4("D:/RFQ_cell_maps/cell_"+str(nm)+"_"+str(nl)+"_" +str(nr) +".txt"))
+                # here the original data stored in txt is too huge, will not be provided. Though the tensor in .npy file is shared.
+
             maps4=np.asarray(maps4)
             maps5.append(maps4)
         maps5=np.asarray(maps5)
@@ -36,7 +42,10 @@ def CST_to_py():
 Load=True
 if Load==False:
 
-    maps=np.load('cells.npy')
+    maps=np.load('\saved_HOSVD\cells.npy')
+    # here the files in folder 'saved_HOSVD' can be found from google driver: 
+    # https://drive.google.com/drive/folders/1cYFu_IA5WmKiDpTkB89WaOOAJSO79YnZ?usp=sharing
+    
     # plt.imshow(maps[2,3,4,100,:,:])
     # plt.colorbar()
     # plt.show()
