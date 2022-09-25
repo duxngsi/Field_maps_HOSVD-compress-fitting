@@ -1,4 +1,4 @@
-# Field_maps_HOSVD-compress-fitting
+# Multi-variate interpolation and fitting of complex field maps through model order reduction
 
 Complex three dimensional field maps can be efficiently de-noised and compressed in data volume by high order single value decomposition. And extension of the method to inter/extrapolation and determination of basis function representation is included.
 omplex three dimensional field maps can be efficiently de-noised and compressed in data volume
