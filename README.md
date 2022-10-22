@@ -10,3 +10,5 @@ maps is applied to spatial coordinates and to the parameters defining the geomet
 creating such maps. The method significantly increases efficiency of provision of compact and noise-
 free maps combined with high resolution. The method is illustrated by creating corresponding maps
 for RF-cells of radio frequency quadrupoles.
+
+Additional large files can be downloaded from here:
