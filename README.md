@@ -11,4 +11,5 @@ creating such maps. The method significantly increases efficiency of provision o
 free maps combined with high resolution. The method is illustrated by creating corresponding maps
 for RF-cells of radio frequency quadrupoles.
 
-Additional large files can be downloaded from here:
+All required files are shared with google driver:
+https://drive.google.com/drive/folders/1cYFu_IA5WmKiDpTkB89WaOOAJSO79YnZ?usp=sharing
