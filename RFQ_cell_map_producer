@@ -1,0 +1,130 @@
+import tkinter as tk
+from tkinter import ttk,Frame,filedialog
+from tkinter.ttk import Treeview
+import numpy as np
+from HOSVD import hosvd
+from scipy.interpolate import interp1d
+
+ww=700
+wh=600
+#parameters:
+window = tk.Tk()
+window.option_add('*font',"Helvetica 10")
+ttk.Style().configure('.', font=('Helvetica', 10))
+
+import os, sys
+
+# ====== prepare compressed data
+Load = True
+if Load == False:
+
+    maps = np.load('cells.npy')
+    # plt.imshow(maps[2,3,4,100,:,:])
+    # plt.colorbar()
+    # plt.show()
+    cmaps_reduced = hosvd(maps)
+    cmaps_reduced.trim((2,2,2,3,3,3))
+    cmaps_reduced.save(path='./saved_HOSVD/compressed/')
+
+else:
+    cmaps_reduced = hosvd(load_from='./saved_HOSVD/compressed/')
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+
+window.title('Cell field map producer')
+window.geometry('400x300')
+tabControl=ttk.Notebook(window)
+tab1 = ttk.Frame(tabControl)            # Create a tab
+tabControl.add(tab1, text='    RFQ    ')      # Add the tab
+tabControl.pack(expand=2, fill="both")  # Pack to make visible
+
+tab2 = ttk.Frame(tabControl)            # Create a tab
+tabControl.add(tab2, text='    DTL    ')      # Add the tab
+tabControl.pack(expand=2, fill="both")  # Pack to make visible
+
+tab3 = ttk.Frame(tabControl)            # Create a tab
+tabControl.add(tab3, text='  Quadrupole  ')      # Add the tab
+tabControl.pack(expand=2, fill="both")  # Pack to make visible
+# tab1 ================================================
+canvas = tk.Canvas(tab1, height=350, width=350)
+image_file = tk.PhotoImage(file=resource_path('figs/RFQ1.png'))
+image = canvas.create_image(5,0, anchor='nw', image=image_file)
+canvas.place(x=10, y=10)
+h0=10
+x0=240
+h1=130
+tk.Label(tab1, text='Cell Parameters:').place(x=x0-10, y= h0)
+
+m = tk.DoubleVar()
+tk.Entry(tab1, textvariable=m).place(x=x0+80, y=h0+30,width=50)
+tk.Label(tab1, text='m (1.5~2.5): ').place(x=x0, y= h0+30)
+
+r = tk.DoubleVar()
+tk.Entry(tab1, textvariable=r).place(x=x0+80, y=h0+60,width=50)
+tk.Label(tab1, text='r (0.6~1.5): ').place(x=x0, y= h0+60)
+
+l = tk.DoubleVar()
+tk.Entry(tab1, textvariable=l).place(x=x0+80, y=h0+90,width=50)
+tk.Label(tab1, text='l (5~20): ').place(x=x0, y= h0+90)
+
+tk.Label(tab1, text='Resolution of 3D map:').place(x=x0-10, y= h1)
+
+Nx = tk.IntVar()
+tk.Entry(tab1, textvariable=Nx).place(x=x0+50, y=h1+25,width=50)
+tk.Label(tab1, text='N_x : ').place(x=x0, y= h1+25)
+
+Ny = tk.IntVar()
+tk.Entry(tab1, textvariable=Ny).place(x=x0+50, y=h1+50,width=50)
+tk.Label(tab1, text='N_y : ').place(x=x0, y= h1+50)
+
+Nz = tk.IntVar()
+tk.Entry(tab1, textvariable=Nz).place(x=x0+50, y=h1+75,width=50)
+tk.Label(tab1, text='N_z : ').place(x=x0, y= h1+75)
+
+path = tk.StringVar()
+path.set("C:/RFQ/cell1.npy")
+tk.Entry(tab1, textvariable=path).place(x=80, y=h1+110,width=100)
+tk.Label(tab1, text='Export to : ').place(x=0, y= h1+110)
+
+ra1=tk.Variable()
+ra1.set(0)
+tk.Radiobutton(tab1,text='Potential map').place(x=0,y=h1+80)
+tk.Radiobutton(tab1,text='Electric field map',variable=ra1).place(x=105,y=h1+80)
+def export():
+    cmaps_reduced=hosvd(load_from='./saved_HOSVD/compressed/')
+    new_x=[]
+    xm=np.array((m.get()-1.5))
+    xm=np.expand_dims(xm,0)
+    new_x.append(xm)
+
+    xr=np.array((r.get()-0.6))
+    xr=np.expand_dims(xr,0)
+    new_x.append(xr)
+
+    xl=np.array((l.get()-5)/15)
+    xl=np.expand_dims(xl,0)
+    new_x.append(xl)
+
+    xz=np.linspace(0,1,Nz.get())
+    new_x.append(xz)
+
+    xy=np.linspace(0,1,Ny.get())
+    new_x.append(xy)
+
+    xx=np.linspace(0,1,Nx.get())
+    new_x.append(xx)
+
+    cmaps_reduced.resample(new_x)
+    my_map=cmaps_reduced.recover()
+    my_map=np.squeeze(my_map)
+    print(my_map.shape)
+    np.save(path.get(),my_map)
+
+    print('done')
+tk.Button(tab1,text='Produce',command=export,height=1,width=15).place(x=x0,y=h1+105)
+
+window.mainloop()
