@@ -46,21 +46,17 @@ class hosvd:
 
     def __n_mode_recover(self,A, which_mode):
 
-        if self.v[which_mode] != False:
-            switch_index = np.arange(0, self.order, 1, dtype='int32') # (0,1,3,2,4) meaning 3rd and 4th dimension is swaped.
-            temp = switch_index[which_mode]
-            switch_index[which_mode]=switch_index[-1]
-            switch_index[-1]=temp
-            result=np.transpose(A,switch_index)
-            # print(np.shape(result))
-            # print(np.shape(self.v[which_order]))
+        switch_index = np.arange(0, self.order, 1, dtype='int32') # (0,1,3,2,4) meaning 3rd and 4th dimension is swaped.
+        temp = switch_index[which_mode]
+        switch_index[which_mode]=switch_index[-1]
+        switch_index[-1]=temp
+        result=np.transpose(A,switch_index)
+        # print(np.shape(result))
+        # print(np.shape(self.v[which_order]))
 
-            result=np.tensordot(result,self.v[which_mode],axes=1)
-            return np.transpose(result,switch_index)
-        else:
+        result=np.tensordot(result,self.v[which_mode],axes=1)
+        return np.transpose(result,switch_index)
 
-            print(str(which_mode)+"is not under decomposed form")
-            return A
 
 
     def recover(self):
